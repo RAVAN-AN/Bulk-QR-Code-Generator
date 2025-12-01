@@ -82,7 +82,7 @@ This project is developed by **Bcreate Systems**, focusing on innovative digital
 
 ## 📜 License
 
-MIT License - Feel free to use, modify, and distribute.
+MIT License - Feel free to use and distribute.
 
 ## 🤝 Support
 
