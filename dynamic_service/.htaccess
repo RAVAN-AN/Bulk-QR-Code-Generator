@@ -1,0 +1,33 @@
+# Dynamic QR Code Service - URL Rewriting
+# This file enables clean URLs for QR code redirects
+
+RewriteEngine On
+
+# Redirect /go/ABC12345 to redirect.php?id=ABC12345
+RewriteRule ^go/([A-Za-z0-9]{8})$ redirect.php?id=$1 [QSA,L]
+
+# Optional: Redirect root to management interface
+# RewriteRule ^$ manage.html [L]
+
+# Security: Block direct access to config file
+<Files "config.php">
+    Order Allow,Deny
+    Deny from all
+</Files>
+
+# Security: Block access to SQL files
+<Files "*.sql">
+    Order Allow,Deny  
+    Deny from all
+</Files>
+
+# Enable CORS for API (if needed)
+<IfModule mod_headers.c>
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization"
+</IfModule>
+
+# Handle OPTIONS requests for CORS preflight
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^(.*)$ $1 [R=200,L]

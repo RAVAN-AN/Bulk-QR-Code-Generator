@@ -295,6 +295,35 @@
         <!-- Step 3: Customization & Preview -->
         <section id="step3" class="hidden">
             <h2>Customize & Preview</h2>
+            
+            <!-- QR Code Type Selection -->
+            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+                <h3 style="margin-top: 0; color: #495057;">📊 QR Code Type</h3>
+                <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+                    <label style="display: flex; align-items: center; cursor: pointer; padding: 10px;">
+                        <input type="radio" name="qrType" value="static" checked style="margin-right: 8px; transform: scale(1.2);">
+                        <div>
+                            <strong>🔒 Static QR Codes</strong><br>
+                            <small style="color: #6c757d;">Direct links - cannot be changed after creation</small>
+                        </div>
+                    </label>
+                    <label style="display: flex; align-items: center; cursor: pointer; padding: 10px;">
+                        <input type="radio" name="qrType" value="dynamic" style="margin-right: 8px; transform: scale(1.2);">
+                        <div>
+                            <strong>🔄 Dynamic QR Codes</strong><br>
+                            <small style="color: #6c757d;">Redirectable links - change destinations anytime</small>
+                        </div>
+                    </label>
+                </div>
+                <div id="dynamicInfo" class="hidden" style="background: #e3f2fd; border: 1px solid #2196f3; border-radius: 6px; padding: 15px; margin-top: 15px;">
+                    <strong>🔄 Dynamic Mode:</strong> Your QR codes will point to redirect URLs that you can manage and update later without reprinting the codes!
+                    <div style="margin-top: 8px;">
+                        <strong>Service URL:</strong> <code id="serviceUrl">Setup required</code> 
+                        <button id="setupServiceBtn" onclick="setupDynamicService()" style="margin-left: 10px; padding: 6px 12px; font-size: 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Setup Service</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="two-column">
                 <div>
                     <div class="form-group">
@@ -869,6 +898,12 @@
 
                 document.getElementById('refreshPreview').onclick = () => this.updateLivePreview();
 
+                // QR Type selection (Static vs Dynamic)
+                const qrTypeRadios = document.querySelectorAll('input[name="qrType"]');
+                qrTypeRadios.forEach(radio => {
+                    radio.onchange = () => this.handleQRTypeChange();
+                });
+
                 // Generation
                 document.getElementById('generateBtn').onclick = () => this.generateAllQRs();
                 document.getElementById('downloadZip').onclick = () => this.downloadZip();
@@ -1096,6 +1131,115 @@ https://www.linkedin.com,LinkedIn_Profile,LinkedIn Professional Network`;
                 ['step2', 'step3', 'step4'].forEach(id => {
                     document.getElementById(id).classList.add('hidden');
                 });
+            }
+
+            // Dynamic QR functionality
+            handleQRTypeChange() {
+                const selectedType = document.querySelector('input[name="qrType"]:checked').value;
+                const dynamicInfo = document.getElementById('dynamicInfo');
+                
+                if (selectedType === 'dynamic') {
+                    dynamicInfo.classList.remove('hidden');
+                    this.showStatus('Dynamic mode selected. You can change link destinations after QR creation!', 'info');
+                } else {
+                    dynamicInfo.classList.add('hidden');
+                    this.showStatus('Static mode selected. QR codes will link directly to your URLs.', 'info');
+                }
+                
+                // Update preview if data is available
+                if (this.data && this.data.rows && this.data.rows.length > 0) {
+                    this.updateLivePreview();
+                }
+            }
+
+            isDynamicMode() {
+                const selectedType = document.querySelector('input[name="qrType"]:checked');
+                return selectedType && selectedType.value === 'dynamic';
+            }
+
+            generateShortId() {
+                // Generate a short unique ID for dynamic QRs
+                const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+                let result = '';
+                for (let i = 0; i < 8; i++) {
+                    result += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                return result;
+            }
+
+            getRedirectUrl(originalUrl) {
+                if (!this.isDynamicMode()) {
+                    return originalUrl;
+                }
+
+                // Check if we have a service URL configured
+                const serviceUrl = document.getElementById('serviceUrl').textContent;
+                if (serviceUrl === 'Setup required') {
+                    this.showStatus('Please setup the dynamic service first!', 'error');
+                    return originalUrl;
+                }
+
+                // Generate short ID for this URL
+                const shortId = this.generateShortId();
+                
+                // Store the mapping (in real implementation, this would go to a database)
+                if (!this.dynamicMappings) {
+                    this.dynamicMappings = {};
+                }
+                this.dynamicMappings[shortId] = {
+                    originalUrl: originalUrl,
+                    created: new Date(),
+                    scanCount: 0
+                };
+
+                // Return the redirect URL
+                return `${serviceUrl}/go/${shortId}`;
+            }
+
+            async createDynamicQR(originalUrl, filename) {
+                if (!this.isDynamicMode()) {
+                    return { url: originalUrl, filename: filename };
+                }
+
+                // Check if service is configured
+                const serviceUrl = document.getElementById('serviceUrl').textContent;
+                if (serviceUrl === 'Setup required') {
+                    throw new Error('Dynamic service not configured. Please set up the service first.');
+                }
+
+                try {
+                    // Create redirect via API
+                    const response = await fetch(`${serviceUrl}/api.php?action=create`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            url: originalUrl,
+                            title: filename
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API request failed: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    if (result.success && result.redirect_url) {
+                        return {
+                            url: result.redirect_url,
+                            filename: filename,
+                            dynamicId: result.id,
+                            originalUrl: originalUrl
+                        };
+                    } else {
+                        throw new Error(result.error || 'Failed to create dynamic QR');
+                    }
+                } catch (error) {
+                    console.error('Error creating dynamic QR:', error);
+                    throw error;
+                }
             }
 
             async handleFile(file) {

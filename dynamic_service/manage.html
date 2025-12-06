@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic QR Code Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .controls {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        
+        .btn:hover {
+            background: #0056b3;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .search-box {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 250px;
+            margin-right: 10px;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            padding: 20px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .status-active {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .status-inactive {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .qr-id {
+            font-family: monospace;
+            background: #e9ecef;
+            padding: 4px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        
+        .redirect-url {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .edit-input {
+            width: 100%;
+            padding: 4px 6px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .stats {
+            padding: 20px;
+            background: #e3f2fd;
+            border-bottom: 1px solid #2196f3;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔄 Dynamic QR Manager</h1>
+            <p>Manage your dynamic QR code redirects</p>
+        </div>
+        
+        <div class="stats" id="statsSection">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalQRs">0</div>
+                    <div class="stat-label">Total QR Codes</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalScans">0</div>
+                    <div class="stat-label">Total Scans</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="activeQRs">0</div>
+                    <div class="stat-label">Active Codes</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button class="btn" onclick="refreshData()">🔄 Refresh</button>
+            <button class="btn" onclick="showCreateModal()">➕ Create New QR</button>
+            <input type="text" class="search-box" placeholder="Search by ID, title, or URL..." id="searchBox" oninput="filterTable()">
+        </div>
+        
+        <div class="table-container">
+            <table id="qrTable">
+                <thead>
+                    <tr>
+                        <th>QR ID</th>
+                        <th>Title</th>
+                        <th>Destination URL</th>
+                        <th>Scans</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="qrTableBody">
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 40px;">
+                            Loading QR codes...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Create/Edit Modal -->
+    <div class="modal" id="editModal">
+        <div class="modal-content">
+            <h3 id="modalTitle">Create New QR Code</h3>
+            <form id="editForm">
+                <div class="form-group">
+                    <label for="editTitle">Title:</label>
+                    <input type="text" id="editTitle" placeholder="e.g., Google Homepage">
+                </div>
+                <div class="form-group">
+                    <label for="editUrl">Destination URL:</label>
+                    <input type="url" id="editUrl" placeholder="https://example.com" required>
+                </div>
+                <div class="form-group" id="customIdGroup" style="display: none;">
+                    <label for="editCustomId">Custom ID (optional):</label>
+                    <input type="text" id="editCustomId" placeholder="ABC123XY" maxlength="8">
+                    <small>8 characters, letters and numbers only</small>
+                </div>
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn btn-danger" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        let qrData = [];
+        let editingId = null;
+        const API_BASE = 'api.php';
+        
+        // Load QR codes on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshData();
+        });
+        
+        async function refreshData() {
+            try {
+                const response = await fetch(`${API_BASE}?action=list`);
+                const data = await response.json();
+                
+                if (data.redirects) {
+                    qrData = data.redirects;
+                    renderTable();
+                    updateStats();
+                } else {
+                    console.error('Failed to load QR codes:', data.error);
+                }
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+        
+        function renderTable() {
+            const tbody = document.getElementById('qrTableBody');
+            
+            if (qrData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px;">No QR codes found</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = qrData.map(qr => `
+                <tr>
+                    <td><span class="qr-id">${qr.id}</span></td>
+                    <td>${qr.title || '-'}</td>
+                    <td class="redirect-url" title="${qr.destination_url}">${qr.destination_url}</td>
+                    <td>${qr.scan_count}</td>
+                    <td class="${qr.is_active ? 'status-active' : 'status-inactive'}">
+                        ${qr.is_active ? 'Active' : 'Inactive'}
+                    </td>
+                    <td>${new Date(qr.created_at).toLocaleDateString()}</td>
+                    <td>
+                        <button class="btn" onclick="editQR('${qr.id}')">Edit</button>
+                        <button class="btn ${qr.is_active ? 'btn-danger' : ''}" onclick="toggleQR('${qr.id}', ${qr.is_active})">
+                            ${qr.is_active ? 'Disable' : 'Enable'}
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        function updateStats() {
+            document.getElementById('totalQRs').textContent = qrData.length;
+            document.getElementById('totalScans').textContent = qrData.reduce((sum, qr) => sum + parseInt(qr.scan_count), 0);
+            document.getElementById('activeQRs').textContent = qrData.filter(qr => qr.is_active).length;
+        }
+        
+        function filterTable() {
+            const search = document.getElementById('searchBox').value.toLowerCase();
+            const rows = document.querySelectorAll('#qrTableBody tr');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(search) ? '' : 'none';
+            });
+        }
+        
+        function showCreateModal() {
+            editingId = null;
+            document.getElementById('modalTitle').textContent = 'Create New QR Code';
+            document.getElementById('editTitle').value = '';
+            document.getElementById('editUrl').value = '';
+            document.getElementById('editCustomId').value = '';
+            document.getElementById('customIdGroup').style.display = 'block';
+            document.getElementById('editModal').style.display = 'block';
+        }
+        
+        function editQR(id) {
+            const qr = qrData.find(q => q.id === id);
+            if (!qr) return;
+            
+            editingId = id;
+            document.getElementById('modalTitle').textContent = 'Edit QR Code';
+            document.getElementById('editTitle').value = qr.title || '';
+            document.getElementById('editUrl').value = qr.destination_url;
+            document.getElementById('customIdGroup').style.display = 'none';
+            document.getElementById('editModal').style.display = 'block';
+        }
+        
+        function closeModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+        
+        async function toggleQR(id, currentStatus) {
+            try {
+                const qr = qrData.find(q => q.id === id);
+                const response = await fetch(`${API_BASE}?action=update&id=${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: qr.destination_url,
+                        title: qr.title,
+                        active: !currentStatus
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    refreshData();
+                } else {
+                    alert('Failed to update QR code: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+        
+        // Form submission
+        document.getElementById('editForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const title = document.getElementById('editTitle').value;
+            const url = document.getElementById('editUrl').value;
+            const customId = document.getElementById('editCustomId').value;
+            
+            try {
+                let response;
+                
+                if (editingId) {
+                    // Update existing
+                    response = await fetch(`${API_BASE}?action=update&id=${editingId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            url: url,
+                            title: title,
+                            active: true
+                        })
+                    });
+                } else {
+                    // Create new
+                    response = await fetch(`${API_BASE}?action=create`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            url: url,
+                            title: title,
+                            id: customId || undefined
+                        })
+                    });
+                }
+                
+                const result = await response.json();
+                if (result.success || result.id) {
+                    closeModal();
+                    refreshData();
+                } else {
+                    alert('Failed to save QR code: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        });
+    </script>
+</body>
+</html>
